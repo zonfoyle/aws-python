@@ -66,10 +66,10 @@ Concepts demonstrated:
 
 ## How to Run
 
-### 1) Clone the repo
+## 1) Clone the repo
 
-git clone https://github.com/your-username/aws-python.git
-cd aws-python
+git clone https://github.com/zonfoyle/aws-python.git
+cd aws-python 
 
 ### 2) Create virtual environment
 
