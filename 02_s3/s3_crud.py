@@ -1,58 +1,76 @@
 """
-AWS S3 CRUD Automation Script
+AWS S3 Bucket Create Script
 Author: Zonique Foyle
 
 Purpose:
-Demonstrates how to automate S3 bucket creation using Python + Boto3.
+Demonstrates how to create an S3 bucket using Python + Boto3.
 
 Concepts covered:
-- AWS SDK authentication
-- Region-aware bucket deployment
-- Globally unique naming strategy
+- AWS SDK authentication via default credential chain
+- Region-aware bucket creation (us-east-1 special case)
+- Globally unique naming strategy using timestamps
 - Exception handling with botocore
 """
 
-# Import the boto3 library
-import boto3
+from __future__ import annotations
+
+import logging
 import time
+
+import boto3
 from botocore.exceptions import ClientError
 
-# Instantiate a boto3 S3 client
-# (client is preferred over resource for real AWS automation work)
-session = boto3.session.Session()
-region = session.region_name or "us-east-1"
-s3 = session.client("s3", region_name=region)
 
-# Name the bucket (must be globally unique in AWS)
-bucket_name = f"zonique-crud-{int(time.time())}"
-print("DEBUG bucket_name =", bucket_name)
-print("DEBUG region =", region)
+def create_bucket(bucket_name: str, region: str) -> None:
+    """Create an S3 bucket in the specified region."""
+    session = boto3.session.Session()
+    s3 = session.client("s3", region_name=region)
 
-# Check if bucket exists
-# Create the bucket if it does NOT exist
-# NOTE:
-# - S3 bucket names are global across ALL AWS users
-# - Timestamp ensures uniqueness
-# - Region matters when creating buckets
+    logging.info("Bucket name: %s", bucket_name)
+    logging.info("Region: %s", region)
 
-try:
-    print(f"'{bucket_name}' bucket does not exist. Creating now...")
+    try:
+        # us-east-1 requires a different create format
+        if region == "us-east-1":
+            s3.create_bucket(Bucket=bucket_name)
+        else:
+            s3.create_bucket(
+                Bucket=bucket_name,
+                CreateBucketConfiguration={"LocationConstraint": region},
+            )
 
-    # us-east-1 requires a different create format
-    if region == "us-east-1":
-        s3.create_bucket(Bucket=bucket_name)
-    else:
-        s3.create_bucket(
-            Bucket=bucket_name,
-            CreateBucketConfiguration={"LocationConstraint": region}
-        )
+        logging.info("Bucket created: %s", bucket_name)
 
-    print(f"'{bucket_name}' bucket has been created.")
+    except ClientError as e:
+        code = e.response["Error"]["Code"]
 
-except ClientError as e:
-    error_code = e.response["Error"]["Code"]
-    error_message = e.response["Error"]["Message"]
-    print(f"Error creating bucket: {error_code} - {error_message}")
+        # More accurate, recruiter-friendly messaging
+        if code == "BucketAlreadyOwnedByYou":
+            logging.info("Bucket already exists and is owned by you: %s", bucket_name)
+            return
+
+        logging.error("CreateBucket failed (%s): %s", code, e)
+        raise
+
+
+def main() -> int:
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
+    # Import the boto3 library (handled above)
+    # Instantiate a boto3 S3 client (client preferred over resource)
+    session = boto3.session.Session()
+    region = session.region_name or "us-east-1"
+
+    # Name the bucket (must be globally unique in AWS)
+    bucket_name = f"zonique-crud-{int(time.time())}"
+
+    create_bucket(bucket_name=bucket_name, region=region)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+
 
 
 
